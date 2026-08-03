@@ -19,7 +19,7 @@ import springfox.documentation.spring.web.plugins.Docket;
  * 配置类，注册web层相关组件
  */
 @Configuration
-@Slf4j
+@Slf4j//作用：可以直接使用log对象
 public class WebMvcConfiguration extends WebMvcConfigurationSupport {
 
     @Autowired
@@ -43,11 +43,14 @@ public class WebMvcConfiguration extends WebMvcConfigurationSupport {
      */
     @Bean
     public Docket docket() {
+        log.info("准备生成接口文档...");
+        //ApiInfoBuilder 构建文档首页展示信息：
         ApiInfo apiInfo = new ApiInfoBuilder()
                 .title("苍穹外卖项目接口文档")
                 .version("2.0")
                 .description("苍穹外卖项目接口文档")
-                .build();
+                .build();//完成构建，生成 ApiInfo 对象
+        //Docket 核心配置（Swagger 规则）
         Docket docket = new Docket(DocumentationType.SWAGGER_2)
                 .apiInfo(apiInfo)
                 .select()
@@ -62,6 +65,7 @@ public class WebMvcConfiguration extends WebMvcConfigurationSupport {
      * @param registry
      */
     protected void addResourceHandlers(ResourceHandlerRegistry registry) {
+        log.info("开始设置静态资源映射...");
         registry.addResourceHandler("/doc.html").addResourceLocations("classpath:/META-INF/resources/");
         registry.addResourceHandler("/webjars/**").addResourceLocations("classpath:/META-INF/resources/webjars/");
     }
