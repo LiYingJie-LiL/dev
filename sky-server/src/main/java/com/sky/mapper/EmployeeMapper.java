@@ -26,4 +26,7 @@ public interface EmployeeMapper {
 
 //    员工分页查询
     Page<Employee> pageQuery(EmployeePageQueryDTO employeePageQueryDTO);
+
+//    启用禁用员工账号
+    void update(Employee employee);
 }
