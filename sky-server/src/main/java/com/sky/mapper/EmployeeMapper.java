@@ -44,4 +44,12 @@ public interface EmployeeMapper {
     //@Update("update employee set status=#{status} where id=#{id}")
     //但是利用@Update注解对于修改其他的属性并不是很通用，所有这里用到动态SQL语句
     void update(Employee employee);
+
+    /**
+     * 根据id查询员工信息
+     * @param id
+     * @return
+     */
+   @Select("select * from employee where id=#{id}")
+    Employee getById(Long id);
 }
