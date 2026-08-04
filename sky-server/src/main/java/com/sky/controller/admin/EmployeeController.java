@@ -100,4 +100,21 @@ public class EmployeeController {
         return Result.success(pageResult);
     }
 
+    /**
+     * 启用禁用员工账号
+     * @param status
+     * @param id
+     * @return
+     *
+     */
+    @PostMapping("/status/{status}")//{status} 属于路径变量（路径参数 PathVariable），写在 URL 路径里面；
+    @ApiOperation("启用禁用员工账号")
+    //@PathVariable 的作用：告诉 Spring MVC：这个变量要从 URL 路径里取值，而不是从请求参数 / 请求体获取。
+    public Result startOrStop(@PathVariable Integer status,Long id){
+        log.info("启用禁用员工账号：{},{}",status,id);
+        employeeService.startOrStop(status,id);
+        return Result.success();
+    }
+
+
 }

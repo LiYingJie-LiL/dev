@@ -122,4 +122,31 @@ public class EmployeeServiceImpl implements EmployeeService {
 
     }
 
+
+    /**
+     * 启用禁用员工账号
+     * @param status
+     * @param id
+     */
+    @Override
+    public void startOrStop(Integer status, Long id) {
+        //启用禁用员工账号，本质上是修改员工status,1 启用，0 禁用
+        //update employee set status=? where id=?
+        //方法一：
+        Employee employee=new Employee();
+        employee.setStatus(status);
+        employee.setId(id);
+
+        //方法二：利用@Build注解
+        /*
+        * Employee employee = Employee.builder()
+        .status(status)
+        .id(id)
+        .build();*/
+
+
+        employeeMapper.update(employee);
+
+    }
+
 }
