@@ -81,6 +81,7 @@ public class EmployeeController {
     @ApiOperation("新增员工")
     public Result save(@RequestBody EmployeeDTO employeeDTO){
         log.info("新增员工：{}",employeeDTO);//{}是一个占位符，在运行时将employeeDTO动态的输入到{}里面
+        System.out.println("当前线程的id"+Thread.currentThread().getId());
         employeeService.save(employeeDTO);
         return Result.success();
     }
