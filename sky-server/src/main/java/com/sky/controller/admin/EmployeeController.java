@@ -48,13 +48,16 @@ public class EmployeeController {
         Employee employee = employeeService.login(employeeLoginDTO);
 
         //登录成功后，生成jwt令牌
-        Map<String, Object> claims = new HashMap<>();
-        claims.put(JwtClaimsConstant.EMP_ID, employee.getId());
+        // 1. 构建JWT载荷，存入员工ID
+        Map<String, Object> claims = new HashMap<>();//Map<String, Object>：父接口，规定集合存储「键值对
+        claims.put(JwtClaimsConstant.EMP_ID, employee.getId());//put (键，值)：向 Map 集合存入一组键值对
+        // 2. 根据密钥、有效期、载荷生成JWT字符串（token）
         String token = JwtUtil.createJWT(
                 jwtProperties.getAdminSecretKey(),
                 jwtProperties.getAdminTtl(),
                 claims);
 
+        // 3. 封装返回VO，携带员工信息+生成好的token，返回给前端
         EmployeeLoginVO employeeLoginVO = EmployeeLoginVO.builder()
                 .id(employee.getId())
                 .userName(employee.getUsername())
@@ -76,6 +79,11 @@ public class EmployeeController {
         return Result.success();
     }
 
+    /**
+     * 新增员工
+     * @param employeeDTO
+     * @return
+     */
     @PostMapping
     @ApiOperation("新增员工")
     public Result save(@RequestBody EmployeeDTO employeeDTO){

@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd" >
+<mapper namespace="com.sky.mapper.SetmealMapper">
+
+
+
+
+
+    <!--新增套餐，向套餐表插入数据
+    parameterType="Setmeal":传入参数类型为 Setmeal 实体类，MyBatis 自动从这个对象读取属性填充#{xxx}
+    useGeneratedKeys="true":开启获取数据库自增主键。setmeal表的id是自增主键，插入套餐记录之后，数据库自动生成 id；
+                            开启这个配置，MyBatis 会把生成的主键值回填到传入的Setmeal对象中
+     keyProperty="id" : 指定把获取到的自增主键，赋值给实体类 Setmeal 的 id 属性。                      -->
+    <insert id="insert" parameterType="Setmeal" useGeneratedKeys="true" keyProperty="id">
+     insert into setmeal(category_id,name,price,status,description,image,create_time,update_time,
+                         create_user,update_user)
+                 values (#{categoryId},#{name},#{price},#{status},#{description},#{image},#{createTime},
+                      #{updateTime},#{createUser},#{updateUser})
+    </insert>
+
+
+</mapper>
