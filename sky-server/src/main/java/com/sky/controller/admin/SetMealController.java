@@ -9,10 +9,13 @@ import com.sky.service.SetMealService;
 import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiOperation;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.ibatis.annotations.Delete;
 import org.mybatis.spring.annotation.MapperScan;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.context.annotation.RequestScope;
+
+import java.util.List;
 
 @RestController
 @Slf4j
@@ -45,8 +48,20 @@ public class SetMealController {
     public Result<PageResult> page(SetmealPageQueryDTO setmealPageQueryDTO){
         log.info("套餐分页查询：{}",setmealPageQueryDTO);
         PageResult pageResult=setMealService.pageQuery(setmealPageQueryDTO);
+        return Result.success(pageResult
+        );
+
+    }
+
+    /**
+     * 删除套餐
+     * @param ids
+     * @return
+     */
+    @DeleteMapping
+    public Result delete(@RequestParam List<Long> ids){
+        log.info("删除套餐：{}",ids);
+        setMealService.delete(ids);
         return Result.success();
-
-
     }
 }

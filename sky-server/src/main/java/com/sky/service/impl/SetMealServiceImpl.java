@@ -2,10 +2,13 @@ package com.sky.service.impl;
 
 import com.github.pagehelper.Page;
 import com.github.pagehelper.PageHelper;
+import com.sky.constant.MessageConstant;
+import com.sky.constant.StatusConstant;
 import com.sky.dto.SetmealDTO;
 import com.sky.dto.SetmealPageQueryDTO;
 import com.sky.entity.Setmeal;
 import com.sky.entity.SetmealDish;
+import com.sky.exception.DeletionNotAllowedException;
 import com.sky.mapper.SetmealDishMapper;
 import com.sky.mapper.SetmealMapper;
 import com.sky.result.PageResult;
@@ -64,6 +67,31 @@ public class SetMealServiceImpl implements SetMealService {
         PageHelper.startPage(setmealPageQueryDTO.getPage(),setmealPageQueryDTO.getPageSize());
         Page< SetmealVO> page=setmealMapper.pageQuery(setmealPageQueryDTO);
         return new PageResult(page.getTotal(),page.getResult());
+
+    }
+
+    /**
+     * 删除套餐
+     * @param ids
+     */
+    @Override
+    @Transactional
+    public void delete(List<Long> ids) {
+        //判断当前套餐是否能够删除 ---是否存在起售的套餐？？
+        for(Long id:ids){
+            Setmeal setmeal=setmealMapper.getById(id);
+            if(setmeal.getStatus()== StatusConstant.ENABLE){
+                //当前套餐处于起售中，不能删除。需要通过异常抛出
+                throw new DeletionNotAllowedException(MessageConstant.SETMEAL_ON_SALE);
+            }
+        }
+
+        //删除套餐表中的套餐数据
+        for(Long id:ids){
+            setmealMapper.deleteById(id);
+            //删除套餐关联的菜品数据(删除套餐菜品关系表中的数据)
+            setmealDishMapper.deleteBySetmealId(id);
+        }
 
     }
 }

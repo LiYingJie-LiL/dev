@@ -5,6 +5,8 @@ import com.sky.dto.SetmealPageQueryDTO;
 import com.sky.result.PageResult;
 import org.springframework.stereotype.Service;
 
+import java.util.List;
+
 /**
  * 套餐相关
  */
@@ -23,4 +25,10 @@ public interface SetMealService {
      * @return
      */
     PageResult pageQuery(SetmealPageQueryDTO setmealPageQueryDTO);
+
+    /**
+     * 删除套餐
+     * @param ids
+     */
+    void delete(List<Long> ids);
 }
