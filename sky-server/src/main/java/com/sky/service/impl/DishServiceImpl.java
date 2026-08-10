@@ -8,6 +8,7 @@ import com.sky.dto.DishDTO;
 import com.sky.dto.DishPageQueryDTO;
 import com.sky.entity.Dish;
 import com.sky.entity.DishFlavor;
+import com.sky.enumeration.OperationType;
 import com.sky.exception.DeletionNotAllowedException;
 import com.sky.mapper.DishFlavorMapper;
 import com.sky.mapper.DishMapper;
@@ -117,7 +118,7 @@ public class DishServiceImpl implements DishService {
         Dish dish=dishMapper.getById(id);
         //根据菜品id查询口味数据
         List<DishFlavor> dishFlavors=dishFlavorMapper.getByDishId(id);
-        //将查询道德数据封装到DishVO
+        //将查询到的数据封装到DishVO
         DishVO dishVO = new DishVO();
         BeanUtils.copyProperties(dish,dishVO);
         dishVO.setFlavors(dishFlavors);
@@ -145,7 +146,19 @@ public class DishServiceImpl implements DishService {
             //向口味表插入n条数据
             dishFlavorMapper.insertBatch(flavors);
         }
+    }
 
-
+    /**
+     * 根据分类id查询菜品
+     * @param categiryId
+     * @return
+     */
+    @Override
+    public List<Dish> list(Long categiryId) {
+        Dish dish=Dish.builder()
+                .categoryId(categiryId)
+                .status(StatusConstant.ENABLE)
+                .build();
+        return dishMapper.list(dish);
     }
 }
