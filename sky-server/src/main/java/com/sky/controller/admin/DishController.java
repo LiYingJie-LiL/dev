@@ -122,6 +122,25 @@ public class DishController {
     }
 
     /**
+     * 菜品起售停售
+     * @param status
+     * @param id
+     * @return
+     */
+    @PostMapping("/status/{status}")
+    @ApiOperation("菜品起售停售")
+    public Result startOrStop(@PathVariable("status") Integer status, Long id) {
+        log.info("菜品起售停售：status={}, id={}", status, id);
+        dishService.startOrStop(status, id);
+
+        // 菜品状态变了，清理菜品相关缓存
+        Set keys = redisTemplate.keys("dish_*");
+        redisTemplate.delete(keys);
+
+        return Result.success();
+    }
+
+    /**
      * 清理缓存数据的方法
      */
     private void cleanCache(String pattern){

@@ -10,6 +10,7 @@ import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiOperation;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -18,10 +19,10 @@ import java.util.List;
 @Slf4j
 @Api(tags = "套餐相关")
 @RequestMapping("/admin/setmeal")
-public class SetMealController {
+public class SetmealController {
 
     @Autowired
-    private SetmealService setMealService;
+    private SetmealService setmealService;
     /**
      * 新增套餐
      * @param setmealDTO
@@ -29,9 +30,10 @@ public class SetMealController {
      */
     @PostMapping
     @ApiOperation("新增套餐")
+    @CacheEvict(cacheNames = "setmealCache" ,key="#setmealDTO.categoryId")
     public Result save(@RequestBody SetmealDTO setmealDTO){
         log.info("新增套餐：{}",setmealDTO);
-        setMealService.saveWithDish(setmealDTO);
+        setmealService.saveWithDish(setmealDTO);
         return Result.success();
     }
 
@@ -44,7 +46,7 @@ public class SetMealController {
     @ApiOperation("分页查询")
     public Result<PageResult> page(SetmealPageQueryDTO setmealPageQueryDTO){
         log.info("套餐分页查询：{}",setmealPageQueryDTO);
-        PageResult pageResult=setMealService.pageQuery(setmealPageQueryDTO);
+        PageResult pageResult=setmealService.pageQuery(setmealPageQueryDTO);
         return Result.success(pageResult
         );
 
@@ -56,9 +58,10 @@ public class SetMealController {
      * @return
      */
     @DeleteMapping
+    @CacheEvict(cacheNames = "setmealCache" ,allEntries = true)//因为参数是id，无法进行精准清理，用allEntries = true将所有缓存都进行清理
     public Result delete(@RequestParam List<Long> ids){
         log.info("删除套餐：{}",ids);
-        setMealService.delete(ids);
+        setmealService.delete(ids);
         return Result.success();
     }
 
@@ -70,7 +73,7 @@ public class SetMealController {
     @GetMapping ("/{id}")
     public Result<SetmealVO> update(@PathVariable Long id){
         log.info("根据id查询套餐:{}",id);
-        SetmealVO setmealVO=setMealService.getByIdWithDish(id);
+        SetmealVO setmealVO=setmealService.getByIdWithDish(id);
         return Result.success(setmealVO);
 
     }
@@ -82,9 +85,24 @@ public class SetMealController {
      */
     @PutMapping
     @ApiOperation("修改套餐")
+    @CacheEvict(cacheNames = "setmealCache" ,allEntries = true)
     public Result update(@RequestBody SetmealDTO setmealDTO){
         log.info("修改菜品：{}",setmealDTO);
-        setMealService.updateWithDish(setmealDTO);
+        setmealService.updateWithDish(setmealDTO);
+        return Result.success();
+    }
+
+    /**
+     * 套餐起售停售
+     * @param status
+     * @param id
+     * @return
+     */
+    @PostMapping("/status/{status}")
+    @ApiOperation("套餐起售停售")
+    @CacheEvict(cacheNames = "setmealCache" ,allEntries = true)
+    public Result startOrStop(@PathVariable Integer status, Long id) {
+        setmealService.startOrStop(status, id);
         return Result.success();
     }
 }

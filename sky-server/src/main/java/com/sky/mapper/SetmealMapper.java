@@ -58,6 +58,14 @@ public interface SetmealMapper {
     @AutoFill(OperationType.UPDATE)
     void update(Setmeal setmeal);
 
+    /**
+     * 套餐起售、停售：只修改状态，避免全字段 update 把其它字段清空
+     * @param setmeal
+     */
+    @Update("update setmeal set status = #{status}, update_time = #{updateTime}, update_user = #{updateUser} where id = #{id}")
+    @AutoFill(OperationType.UPDATE)
+    void updateStatus(Setmeal setmeal);
+
 
     /**
      * 动态条件查询套餐
