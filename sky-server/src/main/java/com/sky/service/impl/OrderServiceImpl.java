@@ -4,8 +4,7 @@ import com.github.pagehelper.Page;
 import com.github.pagehelper.PageHelper;
 import com.sky.constant.MessageConstant;
 import com.sky.context.BaseContext;
-import com.sky.dto.OrdersPageQueryDTO;
-import com.sky.dto.OrdersSubmitDTO;
+import com.sky.dto.*;
 import com.sky.entity.AddressBook;
 import com.sky.entity.OrderDetail;
 import com.sky.entity.Orders;
@@ -20,13 +19,16 @@ import com.sky.mapper.ShoppingCartMapper;
 import com.sky.result.PageResult;
 import com.sky.service.OrderService;
 import com.sky.utils.WeChatPayUtil;
+import com.sky.vo.OrderStatisticsVO;
 import com.sky.vo.OrderSubmitVO;
 import com.sky.vo.OrderVO;
 import io.swagger.util.Json;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.CollectionUtils;
 //import sun.jvm.hotspot.debugger.AddressException;
 
 import java.math.BigDecimal;
@@ -34,8 +36,10 @@ import java.rmi.MarshalException;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
+@Slf4j
 public class OrderServiceImpl implements OrderService {
 
 
@@ -149,6 +153,8 @@ public class OrderServiceImpl implements OrderService {
                 OrderVO orderVO = new OrderVO();
                 BeanUtils.copyProperties(orders, orderVO);
                 orderVO.setOrderDetailList(orderDetails);
+                // 拼接订单菜品摘要，供前端列表展示
+                orderVO.setOrderDishes(getOrderDishes(orderDetails));
 
                 list.add(orderVO);
             }
@@ -173,8 +179,25 @@ public class OrderServiceImpl implements OrderService {
         OrderVO orderVO = new OrderVO();
         BeanUtils.copyProperties(orders, orderVO);
         orderVO.setOrderDetailList(orderDetailList);
+        orderVO.setOrderDishes(getOrderDishes(orderDetailList));
 
         return orderVO;
+    }
+
+    /**
+     * 拼接订单菜品摘要字符串，例如 "鱼香肉丝*2;米饭*1;"
+     * @param orderDetailList 订单明细列表
+     * @return
+     */
+    private String getOrderDishes(List<OrderDetail> orderDetailList) {
+        StringBuilder orderDishes = new StringBuilder();
+        for (OrderDetail orderDetail : orderDetailList) {
+            orderDishes.append(orderDetail.getName())
+                    .append("*")
+                    .append(orderDetail.getNumber())
+                    .append(";");
+        }
+        return orderDishes.toString();
     }
 
     /**
@@ -201,15 +224,20 @@ public class OrderServiceImpl implements OrderService {
 
         // 订单处于待接单状态下取消，需要进行退款
         if (ordersDB.getStatus().equals(Orders.TO_BE_CONFIRMED)) {
-            //调用微信支付退款接口
-            weChatPayUtil.refund(
-                    ordersDB.getNumber(), //商户订单号
-                    ordersDB.getNumber(), //商户退款单号
-                    new BigDecimal(0.01),//退款金额，单位 元
-                    new BigDecimal(0.01));//原订单金额
+            try {
+                //调用微信支付退款接口
+                weChatPayUtil.refund(
+                        ordersDB.getNumber(), //商户订单号
+                        ordersDB.getNumber(), //商户退款单号
+                        new BigDecimal(0.01),//退款金额，单位 元
+                        new BigDecimal(0.01));//原订单金额
 
-            //支付状态修改为 退款
-            orders.setPayStatus(Orders.REFUND);
+                //退款成功，支付状态修改为 退款
+                orders.setPayStatus(Orders.REFUND);
+            } catch (Exception e) {
+                // 微信支付未接入或退款失败时，不影响取消订单主流程，仅记录日志
+                log.warn("微信退款失败，订单号：{}，原因：{}", ordersDB.getNumber(), e.getMessage());
+            }
         }
 
         // 更新订单状态、取消原因、取消时间
@@ -219,6 +247,259 @@ public class OrderServiceImpl implements OrderService {
         orderMapper.update(orders);
 
 
+    }
+
+    /**
+     * 再来一单
+     * @param id
+     */
+    @Override
+    public void repetition(Long id) {
+
+        // 查询当前用户id
+        Long userId = BaseContext.getCurrentId();
+
+        // 根据订单id查询当前订单详情
+        List<OrderDetail> orderDetailList = orderDetailMapper.getByOrderId(id);
+
+        // 订单明细为空，无法再来一单
+        if (orderDetailList == null || orderDetailList.isEmpty()) {
+            throw new OrderBusinessException(MessageConstant.ORDER_DETAIL_IS_NULL);
+        }
+
+        // 将订单详情对象转换为购物车对象
+        List<ShoppingCart> shoppingCartList = orderDetailList.stream().map(x -> {
+            ShoppingCart shoppingCart = new ShoppingCart();
+
+            // 将原订单详情里面的菜品信息重新复制到购物车对象中
+            BeanUtils.copyProperties(x, shoppingCart, "id");
+            shoppingCart.setUserId(userId);
+            shoppingCart.setCreateTime(LocalDateTime.now());
+
+            return shoppingCart;
+        }).collect(Collectors.toList());
+
+        // 将购物车对象批量添加到数据库
+        shoppingCartMapper.insertBatch(shoppingCartList);
+    }
+
+
+
+    //管理端
+
+
+    /**
+     * 搜索查询
+     * @param ordersPageQueryDTO
+     * @return
+     */
+
+    /*
+    * 1. conditionSearch：订单条件分页查询入口
+      接收前端搜索条件 DTO，用 PageHelper 开启分页，查询订单主表`orders`，拿到分页结果。
+      主表查不到菜品明细，需要组装 VO 给前端。
+
+      2. getOrderVOList：实体转 VO
+      遍历分页里每一条订单，把`Orders`复制到`OrderVO`；调用方法查该订单的菜品，把拼接好的菜品字符串设置进 VO，封装 VO 集合。
+      3. getOrderDishesStr：拼接菜品字符串
+      根据订单 id 查`order_detail`明细表，流式把菜品 + 数量拼接成字符串（如`可乐*1;米饭*2;`），供管理端页面直接展示。
+      4. 最后把总条数 + VO 集合封装成`PageResult`返回前端。*/
+    @Override
+    public PageResult conditionSearch(OrdersPageQueryDTO ordersPageQueryDTO) {
+        //开启分页查询
+        PageHelper.startPage(ordersPageQueryDTO.getPage(),ordersPageQueryDTO.getPageSize());
+
+        Page<Orders> page=orderMapper.pageQuery(ordersPageQueryDTO);
+
+
+        // 部分订单状态，需要额外返回订单菜品信息，将Orders转化为OrderVO
+        List<OrderVO> orderVOList = getOrderVOList(page);  //把`Orders`转换成`OrderVO`，VO 是返回给前端的数据模型
+
+        return new PageResult(page.getTotal(), orderVOList);
+    }
+
+
+
+    private List<OrderVO> getOrderVOList(Page<Orders> page) {
+        // 需要返回订单菜品信息，自定义OrderVO响应结果
+        List<OrderVO> orderVOList = new ArrayList<>();
+
+        List<Orders> ordersList = page.getResult();
+        if (!CollectionUtils.isEmpty(ordersList)) {
+            for (Orders orders : ordersList) {
+                // 将共同字段复制到OrderVO
+                OrderVO orderVO = new OrderVO();
+                BeanUtils.copyProperties(orders, orderVO);
+                String orderDishes = getOrderDishesStr(orders);
+
+                // 将订单菜品信息封装到orderVO中，并添加到orderVOList
+                orderVO.setOrderDishes(orderDishes);
+                orderVOList.add(orderVO);
+            }
+        }
+        return orderVOList;
+    }
+
+    private String getOrderDishesStr(Orders orders) {
+        // 查询订单菜品详情信息（订单中的菜品和数量）
+        List<OrderDetail> orderDetailList = orderDetailMapper.getByOrderId(orders.getId());
+
+        // 将每一条订单菜品信息拼接为字符串（格式：宫保鸡丁*3；）
+        List<String> orderDishList = orderDetailList.stream().map(x -> {
+            String orderDish = x.getName() + "*" + x.getNumber() + ";";
+            return orderDish;
+        }).collect(Collectors.toList());
+
+        // 将该订单对应的所有菜品信息拼接在一起
+        return String.join("", orderDishList);}
+
+
+    @Override
+    public OrderStatisticsVO statistics() {
+        //根据状态，分别查询出带接单，带派送，派送中的订单数量
+
+       // 订单状态 1待付款 2待接单 3已接单 4派送中 5已完成 6已取消
+        Integer toBeConfirmed=orderMapper.countStatus(Orders.TO_BE_CONFIRMED);//待接单
+        Integer confirmed=orderMapper.countStatus(Orders.CONFIRMED);//已接单
+        Integer deliveryInProgress=orderMapper.countStatus(Orders.DELIVERY_IN_PROGRESS);//派送中
+
+        //将查询出的数据封装到orderStatisticsVO中响应
+        OrderStatisticsVO orderStatisticsVO=new OrderStatisticsVO();
+        orderStatisticsVO.setToBeConfirmed(toBeConfirmed);
+        orderStatisticsVO.setConfirmed(confirmed);
+        orderStatisticsVO.setDeliveryInProgress(deliveryInProgress);
+
+        return orderStatisticsVO;
+    }
+
+    /**
+     * 商家接单
+     * @param ordersConfirmDTO
+     */
+    @Override
+    public void confirm(OrdersConfirmDTO ordersConfirmDTO) {
+        Orders orders=Orders.builder()
+                .id(ordersConfirmDTO.getId())
+                .status(ordersConfirmDTO.getStatus())
+                .build();
+
+        orderMapper.update(orders);
+    }
+
+    /**
+     * 商家拒单
+     * @param ordersRejectionDTO
+     */
+    @Override
+    public void rejection(OrdersRejectionDTO ordersRejectionDTO)throws Exception {
+
+        //根据id查询订单
+        Orders ordersDB=orderMapper.getById(ordersRejectionDTO.getId());
+
+        //订单只有存在且状态为2 （待接单） 才可以拒单
+        if(ordersDB==null|| !ordersDB.getStatus().equals(Orders.TO_BE_CONFIRMED)){
+            throw new OrderBusinessException(MessageConstant.ORDER_STATUS_ERROR);
+    }
+        //拒单需要退款，根据订单id更新订单状态、拒单原因、取消时间
+        Orders orders=new Orders();
+        orders.setId(ordersDB.getId());
+        orders.setStatus(Orders.CANCELLED);
+        orders.setRejectionReason(ordersRejectionDTO.getRejectionReason());
+        orders.setCancelTime(LocalDateTime.now());
+
+        //支付状态
+        Integer payStatus = ordersDB.getPayStatus();
+        if (payStatus == Orders.PAID) {
+            //用户已支付，需要退款
+            String refund = weChatPayUtil.refund(
+                    ordersDB.getNumber(),
+                    ordersDB.getNumber(),
+                    new BigDecimal(0.01),
+                    new BigDecimal(0.01));
+            log.info("申请退款：{}", refund);
+            //退款成功，支付状态修改为 退款
+            orders.setPayStatus(Orders.REFUND);
+        }
+
+        orderMapper.update(orders);
+
+
+
+    }
+
+    /**
+     * 取消订单
+     * @param ordersCancelDTO
+     */
+    @Override
+    public void cancel(OrdersCancelDTO ordersCancelDTO) throws Exception{
+        //根据id查询订单
+        Orders ordersDB = orderMapper.getById(ordersCancelDTO.getId());
+        //支付状态
+        Integer payStatus=ordersDB.getPayStatus();
+        if (payStatus == 1) {
+            //用户已支付，需要退款
+            String refund = weChatPayUtil.refund(
+                    ordersDB.getNumber(),
+                    ordersDB.getNumber(),
+                    new BigDecimal(0.01),
+                    new BigDecimal(0.01));
+            log.info("申请退款：{}", refund);
+        }
+
+        // 管理端取消订单需要退款，根据订单id更新订单状态、取消原因、取消时间
+        Orders orders = new Orders();
+        orders.setId(ordersCancelDTO.getId());
+        orders.setStatus(Orders.CANCELLED);
+        orders.setCancelReason(ordersCancelDTO.getCancelReason());
+        orders.setCancelTime(LocalDateTime.now());
+        orderMapper.update(orders);
+
+    }
+
+    /**
+     * 派送订单
+     * @param id
+     */
+    @Override
+    public void delivery(Long id) {
+        //根据id查询订单
+        Orders ordersDB = orderMapper.getById(id);
+
+        //校验订单是否存在，并且状态为3 （带派送）
+        if(ordersDB==null||!ordersDB.getStatus().equals(Orders.CONFIRMED)){
+            throw new OrderBusinessException(MessageConstant.ORDER_STATUS_ERROR);
+        }
+
+        Orders orders=new Orders();
+        orders.setId(ordersDB.getId());
+        orders.setStatus(Orders.DELIVERY_IN_PROGRESS);//更新为派送中
+        orderMapper.update(orders);
+
+    }
+
+
+    /**
+     * 完成订单
+     * @param id
+     */
+    @Override
+    public void complete(Long id) {
+        //根据id查询订单
+        Orders ordersDB=orderMapper.getById(id);
+
+        //校验订单是否存在，并且状态为4
+        if(ordersDB==null||!ordersDB.getStatus().equals(Orders.DELIVERY_IN_PROGRESS)){
+            throw new OrderBusinessException(MessageConstant.ORDER_STATUS_ERROR);
+        }
+
+        //更新订单状态，状态转为已完成
+        Orders orders=new Orders();
+        orders.setId(ordersDB.getId());
+        orders.setStatus(Orders.CANCELLED);
+        orders.setDeliveryTime(LocalDateTime.now());
+
+        orderMapper.update(orders);
     }
 
 }
