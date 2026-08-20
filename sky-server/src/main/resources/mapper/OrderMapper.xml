@@ -50,6 +50,8 @@
 
     </select>
 
+
+
     <!--动态更新订单数据，只更新传入的非空字段-->
     <update id="update" parameterType="com.sky.entity.Orders">
         update orders
@@ -77,4 +79,21 @@
         </set>
         where id = #{id}
     </update>
+
+    <select id="sumByMap" resultType="java.lang.Double">
+        select sum(amount) from orders
+        <where>
+            <if test="map.begin!=null">
+                and order_time &gt;#{map.begin}
+            </if>
+            <if test="map.end!=null">
+                and order_time &lt;#{map.end}
+            </if>
+            <if test="map.status!=null">
+                and status=#{map.status}
+            </if>
+        </where>
+    </select>
+
+
 </mapper>
