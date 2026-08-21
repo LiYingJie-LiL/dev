@@ -61,7 +61,7 @@ public class OrderController {
      */
     @GetMapping("/reminder/{id}")
     @ApiOperation("用户催单")
-    public Result<String> reminder(@PathVariable Long id){
+    public Result reminder(@PathVariable Long id){
         log.info("催单用户：{}",id);
         orderService.reminder(id);
         return Result.success();
