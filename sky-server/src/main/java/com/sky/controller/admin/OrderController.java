@@ -101,7 +101,7 @@ public class OrderController {
      * @param id
      * @return
      */
-    @PutMapping("/deliver/{id}")
+    @PutMapping("/delivery/{id}")
     @ApiOperation("派送订单")
     public Result delivery(@PathVariable Long id){
         orderService.deliver(id);
