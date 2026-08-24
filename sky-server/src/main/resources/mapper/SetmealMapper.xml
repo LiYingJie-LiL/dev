@@ -45,4 +45,13 @@
     </select>
 
 
+    <select id="countByMap" resultType="java.lang.Integer">
+        select count(id) from setmeal
+        <where>
+            <if test="map.status != null"> and status = #{status} </if>
+            <if test="map.categoryId != null"> and category_id = #{categoryId} </if>
+        </where>
+    </select>
+
+
 </mapper>
